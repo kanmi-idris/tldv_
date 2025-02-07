@@ -9,14 +9,29 @@ export function useDownloader() {
   const [error, setError] = useState<string | null>(null);
 
   const retrieveStreamUrl = async (meetingId: string): Promise<string> => {
+    console.log(`Retrieving stream URL for meeting ${meetingId}`);
+    if (!meetingId) {
+      throw new Error("Meeting ID is required");
+    }
+    const STREAM_ENDPOINT = `https://gw.tldv.io/v1/meetings/${meetingId}/watch-page?noTranscript=true`;
     try {
-      const response = await fetch(
-        `https://gw.tldv.io/v1/meetings/${meetingId}/watch-page?noTranscript=true`
-      );
+      const response = await fetch(STREAM_ENDPOINT);
+      if (!response.ok) {
+        console.error(`HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data: WatchPageResponse = await response.json();
+      if (!data.video?.source) {
+        throw new Error("Stream URL not found in response");
+      }
       return data.video.source;
     } catch (err) {
-      throw new Error("Failed to retrieve stream URL");
+      console.error("Failed to retrieve stream URL", err);
+      const errorMessage =
+        err instanceof Error
+          ? `Failed to retrieve stream URL: ${err.message}`
+          : "Failed to retrieve stream URL: Unknown error";
+      throw new Error(errorMessage);
     }
   };
 
@@ -38,6 +53,8 @@ export function useDownloader() {
 
     try {
       const url = await retrieveStreamUrl(meetingId);
+      console.log(`Downloading stream from URL: ${url}`);
+
       if (!isValidUrl(url)) {
         throw new Error("Invalid stream URL");
       }

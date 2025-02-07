@@ -4,34 +4,59 @@ import { BackgroundAnimation } from "@/components/ui/BackgroundAnimation";
 import { Button } from "@/components/ui/Button";
 import { StatusMessage } from "@/components/ui/StatusMessage";
 import { useDownloader } from "@/hooks/useDownloader";
-import { StreamURLInputProps } from "@/types";
 import { useState } from "react";
 
-const StreamURLInput = ({ value, onChange, disabled }: StreamURLInputProps) => (
+interface StreamURLInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+}
+
+const URLInput = ({ value, onChange, disabled }: StreamURLInputProps) => (
   <div className="space-y-2">
-    <label htmlFor="streamUrl" className="block text-gray-200 font-medium">
-      Stream URL
+    <label htmlFor="Url" className="block text-gray-200 font-medium">
+      Recording URL
     </label>
     <input
-      id="streamUrl"
+      id="Url"
       type="url"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
-      className="w-full px-4 py-3 rounded-lg bg-gray-800/50 border border-gray-700 text-gray-200 
-        placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-600 
-        focus:border-transparent transition-all disabled:opacity-50"
-      placeholder="https://example.com/playlist.m3u8"
+      className="w-full px-4 py-3 rounded-lg bg-gray-800/50 border border-gray-700 text-gray-200 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent transition-all disabled:opacity-50"
+      placeholder="https://tldv.io/app/meetings/765..."
     />
   </div>
 );
 
 export default function Home() {
-  const [meetingId, setMeetingId] = useState("");
+  const [meetingUrl, setMeetingUrl] = useState("");
   const { downloading, downloadResult, error, handleDownload } =
     useDownloader();
 
-  const isDownloadDisabled = downloading || !meetingId;
+  const getMeetingId = (url: string) => {
+    try {
+      const urlParts = new URL(url);
+      const pathSegments = urlParts.pathname.split("/");
+      console.log("Path segments:", pathSegments);
+
+      const meetingId = pathSegments[3];
+      console.log(`Meeting ID: ${meetingId}`);
+      return meetingId;
+    } catch (error) {
+      console.error("Error parsing URL:", error);
+      return "";
+    }
+  };
+
+  const isDownloadDisabled = downloading || !meetingUrl; // Use meetingUrl
+
+  const handleDownloadClick = () => {
+    const meetingId = getMeetingId(meetingUrl);
+    console.log(`Meeting ID: ${meetingId}`);
+
+    handleDownload(meetingId);
+  };
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-purple-900 to-violet-950 p-6 relative">
@@ -47,15 +72,15 @@ export default function Home() {
           </p>
         </header>
 
-        <StreamURLInput
-          value={meetingId}
-          onChange={setMeetingId}
+        <URLInput
+          value={meetingUrl} // Use meetingUrl
+          onChange={(value) => setMeetingUrl(value)} // Store the full URL
           disabled={downloading}
         />
 
         <footer className="mt-8 space-y-4">
           <Button
-            onClick={() => handleDownload(meetingId)}
+            onClick={handleDownloadClick} // Call handleDownloadClick
             disabled={isDownloadDisabled}
             loading={downloading}
           />
