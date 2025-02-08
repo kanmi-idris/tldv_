@@ -38,10 +38,8 @@ export default function Home() {
     try {
       const urlParts = new URL(url);
       const pathSegments = urlParts.pathname.split("/");
-      console.log("Path segments:", pathSegments);
-
       const meetingId = pathSegments[3];
-      console.log(`Meeting ID: ${meetingId}`);
+
       return meetingId;
     } catch (error) {
       console.error("Error parsing URL:", error);
