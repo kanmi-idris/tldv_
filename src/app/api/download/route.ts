@@ -1,6 +1,14 @@
-import { spawn } from "child_process";
 import ffmpegPath from "ffmpeg-static";
+import ffmpeg from "fluent-ffmpeg";
 import { NextResponse } from "next/server";
+import { PassThrough } from "stream";
+
+// Resolve ffmpeg executable path correctly.
+const resolvedFfmpegPath =
+  typeof ffmpegPath === "string"
+    ? ffmpegPath
+    : (ffmpegPath as any)?.default || ffmpegPath;
+ffmpeg.setFfmpegPath(resolvedFfmpegPath);
 
 export async function GET(request: Request) {
   try {
@@ -18,44 +26,29 @@ export async function GET(request: Request) {
     headers.set("Content-Disposition", 'attachment; filename="video.mp4"');
     headers.set("Content-Type", "video/mp4");
 
-    const stream = new TransformStream();
-    const writer = stream.writable.getWriter();
+    // Create a PassThrough stream for fluent-ffmpeg output
+    const passthrough = new PassThrough();
 
-    const ffmpegArgs = [
-      "-i",
-      m3u8Url,
-      "-c",
-      "copy",
-      "-bsf:a",
-      "aac_adtstoasc",
-      "-f",
-      "mp4",
-      "pipe:1",
-    ];
+    ffmpeg(m3u8Url)
+      .outputOptions("-c", "copy", "-bsf:a", "aac_adtstoasc")
+      .format("mp4")
+      .on("error", (err) => {
+        console.error("fluent-ffmpeg error:", err);
+        passthrough.end();
+      })
+      // Pipe output to the PassThrough stream
+      .pipe(passthrough, { end: true });
 
-    const ffmpegProcess = spawn(ffmpegPath!, ffmpegArgs);
-
-    ffmpegProcess.stdout.on("data", async (chunk) => {
-      await writer.write(chunk);
-    });
-
-    ffmpegProcess.stderr.on("data", (data) => {
-      console.error(`ffmpeg error: ${data}`);
-    });
-
-    ffmpegProcess.on("close", async (code) => {
-      if (code !== 0) {
-        console.error(`ffmpeg exited with code ${code}`);
-      }
-      await writer.close();
-    });
-
-    ffmpegProcess.on("error", async (err) => {
-      console.error("Failed to start ffmpeg process:", err);
-      await writer.close();
-    });
-
-    return new NextResponse(stream.readable, { headers });
+    return new NextResponse(
+      new ReadableStream({
+        start(controller) {
+          passthrough.on("data", (chunk) => controller.enqueue(chunk));
+          passthrough.on("end", () => controller.close());
+          passthrough.on("error", (err) => controller.error(err));
+        },
+      }),
+      { headers }
+    );
   } catch (error) {
     console.error("Download error:", error);
     return NextResponse.json(

@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     const response = await axios.get<WatchPageResponse>(STREAM_ENDPOINT);
     const data = response.data;
     const streamUrl = data?.video?.source ?? data?.meeting?.video?.source;
-    console.log("Watch page data:", data);
+    // console.log("Watch page data:", data);
 
     if (!streamUrl) {
       return NextResponse.json(

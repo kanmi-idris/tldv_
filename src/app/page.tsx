@@ -2,8 +2,12 @@
 
 import { BackgroundAnimation } from "@/components/ui/BackgroundAnimation";
 import { Button } from "@/components/ui/Button";
+import { HowToGuide } from "@/components/ui/HowToGuide";
+import { IframePlayer } from "@/components/ui/IframePlayer";
 import { StatusMessage } from "@/components/ui/StatusMessage";
+import { Tabs } from "@/components/ui/Tabs";
 import { useDownloader } from "@/hooks/useDownloader";
+import axios from "axios";
 import { useState } from "react";
 
 interface StreamURLInputProps {
@@ -31,8 +35,11 @@ const URLInput = ({ value, onChange, disabled }: StreamURLInputProps) => (
 
 export default function Home() {
   const [meetingUrl, setMeetingUrl] = useState("");
+  const [activeTab, setActiveTab] = useState<"stream" | "download">("stream");
+  const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const { downloading, downloadResult, error, handleDownload } =
     useDownloader();
+  const [isLoadingStream, setIsLoadingStream] = useState(false);
 
   const getMeetingId = (url: string) => {
     try {
@@ -47,48 +54,79 @@ export default function Home() {
     }
   };
 
-  const isDownloadDisabled = downloading || !meetingUrl; // Use meetingUrl
-
-  const handleDownloadClick = () => {
-    const meetingId = getMeetingId(meetingUrl);
-    console.log(`Meeting ID: ${meetingId}`);
-
-    handleDownload(meetingId);
+  const handleUrlSubmit = async () => {
+    try {
+      setIsLoadingStream(true);
+      setStreamUrl(null); // Reset previous stream
+      const meetingId = getMeetingId(meetingUrl);
+      const response = await axios.get(
+        `/api/getStreamUrl?meetingId=${meetingId}`
+      );
+      setStreamUrl(response.data.streamUrl);
+    } catch (err) {
+      console.error("Failed to get stream URL:", err);
+    } finally {
+      setIsLoadingStream(false);
+    }
   };
+
+  const isActionDisabled =
+    !meetingUrl || (activeTab === "download" && downloading);
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-purple-900 to-violet-950 p-6 relative">
       <BackgroundAnimation />
 
-      <section className="max-w-2xl w-full backdrop-blur-md bg-gray-900/40 rounded-2xl p-8 shadow-2xl border border-gray-700">
+      <section className="max-w-3xl w-full backdrop-blur-md bg-gray-900/40 rounded-2xl p-8 shadow-2xl border border-gray-700">
         <header className="text-center mb-10">
           <h1 className="text-4xl font-bold text-white mb-4">
             TLDV Downloader
           </h1>
           <p className="text-gray-200 text-lg mb-2">
-            Enter a tldv recording link to download.
+            Enter a tldv recording link to stream or download.
           </p>
         </header>
 
         <URLInput
-          value={meetingUrl} // Use meetingUrl
-          onChange={(value) => setMeetingUrl(value)} // Store the full URL
+          value={meetingUrl}
+          onChange={setMeetingUrl}
           disabled={downloading}
         />
 
-        <footer className="mt-8 space-y-4">
-          <Button
-            onClick={handleDownloadClick} // Call handleDownloadClick
-            disabled={isDownloadDisabled}
-            loading={downloading}
-          />
+        <HowToGuide />
 
-          <StatusMessage
-            error={error}
-            success={downloadResult?.success}
-            filename={downloadResult?.filename}
-          />
-        </footer>
+        <div className="mt-8">
+          <Tabs activeTab={activeTab} onTabChange={setActiveTab} />
+
+          {activeTab === "stream" ? (
+            <div className="space-y-4">
+              <button
+                onClick={handleUrlSubmit}
+                disabled={!meetingUrl || isLoadingStream}
+                className="w-full px-4 py-2 rounded-lg bg-violet-600 text-white font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoadingStream ? "Loading..." : "Load Stream"}
+              </button>
+              <IframePlayer streamUrl={streamUrl} isLoading={isLoadingStream} />
+            </div>
+          ) : (
+            <footer className="space-y-4">
+              <Button
+                onClick={() => {
+                  const meetingId = getMeetingId(meetingUrl);
+                  handleDownload(meetingId);
+                }}
+                disabled={isActionDisabled}
+                loading={downloading}
+              />
+              <StatusMessage
+                error={error}
+                success={downloadResult?.success}
+                filename={downloadResult?.filename}
+              />
+            </footer>
+          )}
+        </div>
       </section>
     </main>
   );
